@@ -1,0 +1,10 @@
+server:
+  host: ""
+  port: "8080"
+
+postgres:
+  host: "localhost"
+  user: "postgres"
+  password: "postgres"
+  port: "5432"
+  database: "owner_api_proxy"
