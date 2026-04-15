@@ -23,11 +23,8 @@ owner-api-proxy/
     │       ├── db/
     │       │   ├── model.go          # db model command
     │       │   ├── pull.go           # db pull command
-    │       │   ├── push.go           # db push command
+    │       │   ├── migrate.go        # db migrate command
     │       │   └── test/
-    │       │       ├── pull_test.go
-    │       │       ├── push_test.go
-    │       │       └── seed_test.go
     │       └── server/
     │           └── server.go         # Starts Gin server via CLI
     └── internal/
