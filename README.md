@@ -54,7 +54,6 @@ Use nested config in `src/app.yaml`:
 
 ```yaml
 server:
-  host: ""
   port: "8080"
 
 postgres:
