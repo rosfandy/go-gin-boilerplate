@@ -1,18 +1,16 @@
 package test
 
 import (
+	"errors"
 	"testing"
 
 	"owner-api-proxy/pkg/cli/db"
 )
 
-// TestMigrateCommand_HasExpectedDefaultFlags tests that the migrate command
-// has the expected default flag values. It checks that the default
-// value of the down flag is false, the default value of the
-// config flag is "app.yaml", and the default value of the ssl
-// flag is an empty string.
 func TestMigrateCommand_HasExpectedDefaultFlags(t *testing.T) {
-	cmd := db.MigrateCommand()
+	cmd := db.MigrateCommand(func(options db.MigrateOptions) error {
+		return nil
+	})
 
 	down, err := cmd.Flags().GetBool("down")
 	if err != nil {
@@ -39,10 +37,10 @@ func TestMigrateCommand_HasExpectedDefaultFlags(t *testing.T) {
 	}
 }
 
-// TestMigrateCommand_ReturnsErrorForInvalidSSLValue tests that the migrate command
-// returns an error when an invalid ssl value is provided.
 func TestMigrateCommand_ReturnsErrorForInvalidSSLValue(t *testing.T) {
-	cmd := db.MigrateCommand()
+	cmd := db.MigrateCommand(func(options db.MigrateOptions) error {
+		return errors.New("should not be called")
+	})
 	cmd.SetArgs([]string{"--ssl", "invalid"})
 
 	err := cmd.Execute()

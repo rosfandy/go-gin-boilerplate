@@ -1,7 +1,12 @@
 package routes
 
-import "github.com/gin-gonic/gin"
+import (
+	"owner-api-proxy/internal/container"
 
-func RegisterV1Routes(group *gin.RouterGroup) {
-	RegisterHelloRoutes(group)
+	"github.com/gin-gonic/gin"
+)
+
+func RegisterV1Routes(group *gin.RouterGroup, dependencies *container.Container) {
+	HelloRoutes(group)
+	UserRoutes(group, dependencies)
 }
