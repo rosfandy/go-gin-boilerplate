@@ -5,6 +5,7 @@ import (
 
 	"owner-api-proxy/internal/config"
 
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -19,9 +20,20 @@ func PingCommand() *cobra.Command {
 				return err
 			}
 
-			db, err := config.NewPostgresDB()
+			dbType, err := promptDBType()
 			if err != nil {
 				return err
+			}
+
+			sqlClient := config.NewClientSql(dbType)
+			if err := sqlClient.Open(); err != nil {
+				return err
+			}
+			defer sqlClient.Close()
+
+			db := sqlClient.Client()
+			if db == nil {
+				return fmt.Errorf("database client is not initialized")
 			}
 
 			sqlDB, err := db.DB()
@@ -33,7 +45,7 @@ func PingCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Println("database connection is successful")
+			fmt.Println("database connection is successful for", dbType)
 			return nil
 		},
 	}
@@ -41,4 +53,28 @@ func PingCommand() *cobra.Command {
 	cmd.Flags().StringVar(&configPath, "config", "app.yaml", "Config file path")
 
 	return cmd
+}
+
+func promptDBType() (string, error) {
+	selected, err := SelectPrompt("Select database", []string{"postgres", "mysql"})
+	if err != nil {
+		return "", err
+	}
+
+	return selected, nil
+}
+
+func SelectPrompt(label string, items []string) (string, error) {
+	prompt := promptui.Select{
+		Label: label,
+		Items: items,
+		Size:  len(items),
+	}
+
+	_, result, err := prompt.Run()
+	if err != nil {
+		return "", fmt.Errorf("prompt failed: %w", err)
+	}
+
+	return result, nil
 }

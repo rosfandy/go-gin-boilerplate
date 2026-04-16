@@ -5,8 +5,9 @@ import "github.com/spf13/viper"
 var AppConfig *Config
 
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Postgres PostgresConfig `mapstructure:"postgres"`
+	Server   ServerConfig `mapstructure:"server"`
+	Postgres DbConfig     `mapstructure:"postgres"`
+	MySQL    DbConfig     `mapstructure:"mysql"`
 }
 
 type ServerConfig struct {
@@ -14,12 +15,13 @@ type ServerConfig struct {
 	Port string `mapstructure:"port"`
 }
 
-type PostgresConfig struct {
+type DbConfig struct {
 	Host     string `mapstructure:"host"`
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
 	Port     string `mapstructure:"port"`
 	Database string `mapstructure:"database"`
+	Secure   string `mapstructure:"secure"`
 }
 
 func LoadConfig(path *string) (*Config, error) {

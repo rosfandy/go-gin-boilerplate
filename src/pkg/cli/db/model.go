@@ -19,30 +19,14 @@ func ModelCommand() *cobra.Command {
 		Use:   "model",
 		Short: "Generate database model",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			structName := toPascalCase(name)
-			fileName := strings.ToLower(nonAlphaNum.ReplaceAllString(name, "_"))
-			fileName = strings.Trim(fileName, "_")
-			if fileName == "" {
+			if name == "" {
 				return fmt.Errorf("invalid model name: %s", name)
 			}
 
-			modelPath := filepath.Join("internal", "database", "model", fileName+".go")
-			if _, err := os.Stat(modelPath); err == nil {
-				return fmt.Errorf("model file already exists: %s", modelPath)
-			} else if !os.IsNotExist(err) {
+			if err := generateModels(name); err != nil {
 				return err
 			}
 
-			content := fmt.Sprintf("package model\n\n"+
-				"type %s struct {\n"+
-				"\tID uint `gorm:\"primaryKey\"`\n"+
-				"}\n", structName)
-
-			if err := os.WriteFile(modelPath, []byte(content), 0644); err != nil {
-				return err
-			}
-
-			fmt.Println("Model", structName, "is generated at", modelPath)
 			return nil
 		},
 	}
@@ -70,4 +54,30 @@ func toPascalCase(input string) string {
 	}
 
 	return b.String()
+}
+
+func generateModels(name string) error {
+	structName := toPascalCase(name)
+	fileName := strings.ToLower(nonAlphaNum.ReplaceAllString(name, "_"))
+	fileName = strings.Trim(fileName, "_")
+
+	modelPath := filepath.Join("internal", "database", "model", fileName+".go")
+	if _, err := os.Stat(modelPath); err == nil {
+		return fmt.Errorf("model file already exists: %s", modelPath)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	content := fmt.Sprintf("package model\n\n"+
+		"type %s struct {\n"+
+		"\tID uint `gorm:\"primaryKey\"`\n"+
+		"}\n", structName)
+
+	if err := os.WriteFile(modelPath, []byte(content), 0644); err != nil {
+		return err
+	}
+
+	fmt.Println("Model", structName, "is generated at", modelPath)
+	return nil
+
 }

@@ -25,6 +25,12 @@ func ServerCommand() *cobra.Command {
 				return err
 			}
 
+			sqlClient := config.NewClientSql("postgres")
+			if err := sqlClient.Open(); err != nil {
+				return err
+			}
+			defer sqlClient.Close()
+
 			log := config.NewLogrusWithCategory("server")
 			ginCfg := config.LoadGinConfig()
 			engine := config.NewGinEngine(ginCfg)
@@ -63,10 +69,6 @@ func ServerCommand() *cobra.Command {
 			defer cancel()
 
 			if err := srv.Shutdown(ctx); err != nil {
-				return err
-			}
-
-			if err := config.ClosePostgresDB(); err != nil {
 				return err
 			}
 

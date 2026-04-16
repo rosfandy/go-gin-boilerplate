@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"owner-api-proxy/internal/config"
 	"owner-api-proxy/internal/database/model"
+	"strings"
 
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -11,9 +12,15 @@ import (
 
 var migrationModels = []any{
 	&model.Users{},
+	&model.Owner{},
+	&model.OwnerPremium{},
 }
 
 func Up(configPath *string, sslMode string) error {
+	return UpWithDB(configPath, sslMode, "postgres")
+}
+
+func UpWithDB(configPath *string, sslMode string, dbType string) error {
 	log := config.NewLogrusWithCategory("migration")
 	log.Info("running up migration")
 
@@ -22,32 +29,61 @@ func Up(configPath *string, sslMode string) error {
 		return err
 	}
 
-	sslEnabled := sslMode == "enable"
+	normalizedDBType := strings.ToLower(strings.TrimSpace(dbType))
+	dbConfig, err := getDBConfig(normalizedDBType)
+	if err != nil {
+		log.WithError(err).Error("failed to resolve target database")
+		return err
+	}
 
-	if config.AppConfig == nil || config.AppConfig.Postgres.Database == "" {
-		err := fmt.Errorf("postgres database is not configured")
+	if sslMode != "" {
+		dbConfig.Secure = sslMode
+	}
+
+	if dbConfig.Database == "" {
+		err := fmt.Errorf("%s database is not configured", normalizedDBType)
 		log.WithError(err).Error("failed to resolve target database")
 		return err
 	}
 
 	log.WithFields(map[string]any{
-		"host":     config.AppConfig.Postgres.Host,
-		"port":     config.AppConfig.Postgres.Port,
-		"user":     config.AppConfig.Postgres.User,
-		"database": config.AppConfig.Postgres.Database,
-		"ssl":      sslEnabled,
-	}).Info("target postgres connection")
+		"db_type":  normalizedDBType,
+		"host":     dbConfig.Host,
+		"port":     dbConfig.Port,
+		"user":     dbConfig.User,
+		"database": dbConfig.Database,
+		"ssl":      dbConfig.Secure,
+	}).Info("target database connection")
 
-	db, err := config.InitPostgresDBWithSSL(sslEnabled)
-	if err != nil {
-		log.WithError(err).Error("failed to initialize postgres")
+	dbClient := config.NewClientSql(normalizedDBType)
+	dbErr := dbClient.Open()
+	if dbErr != nil {
+		log.WithError(dbErr).Error("failed to initialize database")
+		return dbErr
+	}
+	defer dbClient.Close()
+
+	db := dbClient.Client()
+	if db == nil {
+		err := fmt.Errorf("database client is not initialized")
+		log.WithError(err).Error("failed to initialize database")
 		return err
 	}
-	defer config.ClosePostgresDB()
+
+	currentDatabaseQuery := "SELECT current_database()"
+	if normalizedDBType == "mysql" {
+		currentDatabaseQuery = "SELECT DATABASE()"
+	}
 
 	var currentDatabase string
-	if err := db.Raw("SELECT current_database()").Scan(&currentDatabase).Error; err != nil {
+	if err := db.Raw(currentDatabaseQuery).Scan(&currentDatabase).Error; err != nil {
 		log.WithError(err).Error("failed to detect current database")
+		return err
+	}
+
+	if currentDatabase != dbConfig.Database {
+		err := fmt.Errorf("connected to '%s' but expected '%s'", currentDatabase, dbConfig.Database)
+		log.WithError(err).Error("database mismatch")
 		return err
 	}
 
@@ -57,25 +93,22 @@ func Up(configPath *string, sslMode string) error {
 		return err
 	}
 
-	if currentDatabase != config.AppConfig.Postgres.Database {
-		err := fmt.Errorf("connected to '%s' but expected '%s'", currentDatabase, config.AppConfig.Postgres.Database)
-		log.WithError(err).Error("database mismatch")
-		return err
-	}
-
 	log.WithFields(map[string]any{
+		"db_type":  normalizedDBType,
 		"database": currentDatabase,
 		"user":     currentUser,
 	}).Info("connected to database")
 
 	debugDB := db.Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Info)})
 
-	var currentSchema string
-	if err := debugDB.Raw("SELECT current_schema()").Scan(&currentSchema).Error; err != nil {
-		log.WithError(err).Error("failed to detect current schema")
-		return err
+	if normalizedDBType == "postgres" {
+		var currentSchema string
+		if err := debugDB.Raw("SELECT current_schema()").Scan(&currentSchema).Error; err != nil {
+			log.WithError(err).Error("failed to detect current schema")
+			return err
+		}
+		log.WithField("schema", currentSchema).Info("using schema")
 	}
-	log.WithField("schema", currentSchema).Info("using schema")
 
 	if err := debugDB.AutoMigrate(migrationModels...); err != nil {
 		log.WithError(err).Error("failed to run auto migrate")
@@ -104,6 +137,10 @@ func Up(configPath *string, sslMode string) error {
 }
 
 func Down(configPath *string, sslMode string) error {
+	return DownWithDB(configPath, sslMode, "postgres")
+}
+
+func DownWithDB(configPath *string, sslMode string, dbType string) error {
 	log := config.NewLogrusWithCategory("migration")
 	log.Info("running down migration")
 
@@ -112,37 +149,60 @@ func Down(configPath *string, sslMode string) error {
 		return err
 	}
 
-	sslEnabled := sslMode == "enable"
+	normalizedDBType := strings.ToLower(strings.TrimSpace(dbType))
+	dbConfig, err := getDBConfig(normalizedDBType)
+	if err != nil {
+		log.WithError(err).Error("failed to resolve target database")
+		return err
+	}
 
-	if config.AppConfig == nil || config.AppConfig.Postgres.Database == "" {
-		err := fmt.Errorf("postgres database is not configured")
+	if sslMode != "" {
+		dbConfig.Secure = sslMode
+	}
+
+	if dbConfig.Database == "" {
+		err := fmt.Errorf("%s database is not configured", normalizedDBType)
 		log.WithError(err).Error("failed to resolve target database")
 		return err
 	}
 
 	log.WithFields(map[string]any{
-		"host":     config.AppConfig.Postgres.Host,
-		"port":     config.AppConfig.Postgres.Port,
-		"user":     config.AppConfig.Postgres.User,
-		"database": config.AppConfig.Postgres.Database,
-		"ssl":      sslEnabled,
-	}).Info("target postgres connection")
+		"db_type":  normalizedDBType,
+		"host":     dbConfig.Host,
+		"port":     dbConfig.Port,
+		"user":     dbConfig.User,
+		"database": dbConfig.Database,
+		"ssl":      dbConfig.Secure,
+	}).Info("target database connection")
 
-	db, err := config.InitPostgresDBWithSSL(sslEnabled)
-	if err != nil {
-		log.WithError(err).Error("failed to initialize postgres")
+	dbClient := config.NewClientSql(normalizedDBType)
+	dbErr := dbClient.Open()
+	if dbErr != nil {
+		log.WithError(dbErr).Error("failed to initialize database")
+		return dbErr
+	}
+	defer dbClient.Close()
+
+	db := dbClient.Client()
+	if db == nil {
+		err := fmt.Errorf("database client is not initialized")
+		log.WithError(err).Error("failed to initialize database")
 		return err
 	}
-	defer config.ClosePostgresDB()
+
+	currentDatabaseQuery := "SELECT current_database()"
+	if normalizedDBType == "mysql" {
+		currentDatabaseQuery = "SELECT DATABASE()"
+	}
 
 	var currentDatabase string
-	if err := db.Raw("SELECT current_database()").Scan(&currentDatabase).Error; err != nil {
+	if err := db.Raw(currentDatabaseQuery).Scan(&currentDatabase).Error; err != nil {
 		log.WithError(err).Error("failed to detect current database")
 		return err
 	}
 
-	if currentDatabase != config.AppConfig.Postgres.Database {
-		err := fmt.Errorf("connected to '%s' but expected '%s'", currentDatabase, config.AppConfig.Postgres.Database)
+	if currentDatabase != dbConfig.Database {
+		err := fmt.Errorf("connected to '%s' but expected '%s'", currentDatabase, dbConfig.Database)
 		log.WithError(err).Error("database mismatch")
 		return err
 	}
@@ -178,4 +238,19 @@ func tableNameFromModel(db *gorm.DB, m any) (string, error) {
 	}
 
 	return stmt.Schema.Table, nil
+}
+
+func getDBConfig(dbType string) (*config.DbConfig, error) {
+	if config.AppConfig == nil {
+		return nil, fmt.Errorf("app config is not loaded")
+	}
+
+	switch dbType {
+	case "postgres":
+		return &config.AppConfig.Postgres, nil
+	case "mysql":
+		return &config.AppConfig.MySQL, nil
+	default:
+		return nil, fmt.Errorf("unsupported db type: %s", dbType)
+	}
 }

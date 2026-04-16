@@ -8,6 +8,7 @@ import (
 
 	"owner-api-proxy/internal/config"
 
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -23,9 +24,36 @@ func PullCommand() *cobra.Command {
 				return err
 			}
 
-			db, err := config.NewPostgresDB()
+			prompt := promptui.Prompt{
+				Label: "Table name",
+				Validate: func(input string) error {
+					if strings.TrimSpace(input) == "" {
+						return fmt.Errorf("table name is required")
+					}
+					return nil
+				},
+			}
+
+			inputName, err := prompt.Run()
+			if err != nil {
+				return fmt.Errorf("prompt failed: %w", err)
+			}
+			name = strings.TrimSpace(inputName)
+
+			dbType, err := SelectPrompt("Select database", []string{"postgres", "mysql"})
 			if err != nil {
 				return err
+			}
+
+			sqlClient := config.NewClientSql(dbType)
+			if err := sqlClient.Open(); err != nil {
+				return err
+			}
+			defer sqlClient.Close()
+
+			db := sqlClient.Client()
+			if db == nil {
+				return fmt.Errorf("database client is not initialized")
 			}
 
 			sqlDB, err := db.DB()
@@ -105,8 +133,6 @@ func PullCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&name, "name", "", "Pull target name")
-	_ = cmd.MarkFlagRequired("name")
 	cmd.Flags().StringVar(&configPath, "config", "app.yaml", "Config file path")
 
 	return cmd

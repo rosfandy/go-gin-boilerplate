@@ -7,3 +7,13 @@ postgres:
   password: "postgres"
   port: "5432"
   database: "owner_api_proxy"
+  ssl: "disable"
+
+mysql:
+  host: ""
+  user: ""
+  password: ""
+  port: ""
+  database: ""
+  tls: "false"
+
