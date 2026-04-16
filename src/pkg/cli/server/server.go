@@ -25,7 +25,8 @@ func ServerCommand() *cobra.Command {
 				return err
 			}
 
-			sqlClient := config.NewClientSql("postgres")
+			infoLog := config.NewLogrusWithCategory("info")
+			sqlClient := config.NewClientSql("mysql")
 			if err := sqlClient.Open(); err != nil {
 				return err
 			}
@@ -49,6 +50,7 @@ func ServerCommand() *cobra.Command {
 				close(errCh)
 			}()
 
+			infoLog.Info("database connected")
 			log.WithField("address", ginCfg.Address).Info("server started")
 
 			sigCh := make(chan os.Signal, 1)
