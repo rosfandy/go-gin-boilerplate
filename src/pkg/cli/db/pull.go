@@ -6,13 +6,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"owner-api-proxy/internal/config"
-
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
-func PullCommand() *cobra.Command {
+type RunPullFn func(options PullOptions) error
+
+type PullOptions struct {
+	ConfigPath string
+	Name       string
+	DBType     string
+}
+
+func PullCommand(runPull RunPullFn) *cobra.Command {
 	var name string
 	var configPath string
 
@@ -20,55 +25,11 @@ func PullCommand() *cobra.Command {
 		Use:   "pull",
 		Short: "Pull database schema",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := config.LoadConfig(&configPath); err != nil {
-				return err
-			}
-
-			prompt := promptui.Prompt{
-				Label: "Table name",
-				Validate: func(input string) error {
-					if strings.TrimSpace(input) == "" {
-						return fmt.Errorf("table name is required")
-					}
-					return nil
-				},
-			}
-
-			inputName, err := prompt.Run()
-			if err != nil {
-				return fmt.Errorf("prompt failed: %w", err)
-			}
-			name = strings.TrimSpace(inputName)
+			name = strings.TrimSpace(name)
 
 			dbType, err := SelectPrompt("Select database", []string{"postgres", "mysql"})
 			if err != nil {
 				return err
-			}
-
-			sqlClient := config.NewClientSql(dbType)
-			if err := sqlClient.Open(); err != nil {
-				return err
-			}
-			defer sqlClient.Close()
-
-			db := sqlClient.Client()
-			if db == nil {
-				return fmt.Errorf("database client is not initialized")
-			}
-
-			sqlDB, err := db.DB()
-			if err != nil {
-				return err
-			}
-			defer sqlDB.Close()
-
-			columns, err := db.Migrator().ColumnTypes(name)
-			if err != nil {
-				return err
-			}
-
-			if len(columns) == 0 {
-				return fmt.Errorf("table not found or has no columns: %s", name)
 			}
 
 			fileName := strings.ToLower(nonAlphaNum.ReplaceAllString(name, "_"))
@@ -84,61 +45,22 @@ func PullCommand() *cobra.Command {
 				return err
 			}
 
-			structName := toPascalCase(name)
-			var builder strings.Builder
-			builder.WriteString("package model\n\n")
-			builder.WriteString("type ")
-			builder.WriteString(structName)
-			builder.WriteString(" struct {\n")
-
-			for _, col := range columns {
-				columnName := col.Name()
-				nullable, ok := col.Nullable()
-				if !ok {
-					nullable = true
-				}
-
-				fieldName := toPascalCase(columnName)
-				fieldType := postgresTypeToGoType(col.DatabaseTypeName(), nullable)
-				isPrimaryKey, _ := col.PrimaryKey()
-
-				builder.WriteString("\t")
-				builder.WriteString(fieldName)
-				builder.WriteString(" ")
-				builder.WriteString(fieldType)
-				builder.WriteString(" `gorm:\"column:")
-				builder.WriteString(columnName)
-				if isPrimaryKey || strings.EqualFold(columnName, "id") {
-					builder.WriteString(";primaryKey")
-				}
-				builder.WriteString("\" json:\"")
-				builder.WriteString(columnName)
-				builder.WriteString("\"`\n")
-			}
-
-			builder.WriteString("}\n\n")
-			builder.WriteString("func (")
-			builder.WriteString(structName)
-			builder.WriteString(") TableName() string {\n")
-			builder.WriteString("\treturn \"")
-			builder.WriteString(name)
-			builder.WriteString("\"\n}\n")
-
-			if err := os.WriteFile(modelPath, []byte(builder.String()), 0644); err != nil {
-				return err
-			}
-
-			fmt.Println("Model", structName, "is generated at", modelPath)
-			return nil
+			return runPull(PullOptions{
+				ConfigPath: configPath,
+				Name:       name,
+				DBType:     dbType,
+			})
 		},
 	}
 
+	cmd.Flags().StringVar(&name, "name", "", "Table name")
+	_ = cmd.MarkFlagRequired("name")
 	cmd.Flags().StringVar(&configPath, "config", "app.yaml", "Config file path")
 
 	return cmd
 }
 
-func postgresTypeToGoType(dataType string, nullable bool) string {
+func PostgresTypeToGoType(dataType string, nullable bool) string {
 	base := "string"
 
 	switch strings.ToLower(dataType) {
@@ -159,4 +81,8 @@ func postgresTypeToGoType(dataType string, nullable bool) string {
 	}
 
 	return base
+}
+
+func postgresTypeToGoType(dataType string, nullable bool) string {
+	return PostgresTypeToGoType(dataType, nullable)
 }

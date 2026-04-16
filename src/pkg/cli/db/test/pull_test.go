@@ -1,6 +1,7 @@
 package test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -8,7 +9,9 @@ import (
 )
 
 func TestPullCommand_HasExpectedDefaultFlags(t *testing.T) {
-	cmd := db.PullCommand()
+	cmd := db.PullCommand(func(options db.PullOptions) error {
+		return nil
+	})
 
 	name, err := cmd.Flags().GetString("name")
 	if err != nil {
@@ -28,7 +31,9 @@ func TestPullCommand_HasExpectedDefaultFlags(t *testing.T) {
 }
 
 func TestPullCommand_RequiresNameFlag(t *testing.T) {
-	cmd := db.PullCommand()
+	cmd := db.PullCommand(func(options db.PullOptions) error {
+		return errors.New("should not be called")
+	})
 
 	err := cmd.Execute()
 	if err == nil {

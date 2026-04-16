@@ -12,6 +12,10 @@ import (
 
 var nonAlphaNum = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 
+func NonAlphaNum() *regexp.Regexp {
+	return nonAlphaNum
+}
+
 func ModelCommand() *cobra.Command {
 	var name string
 
@@ -19,7 +23,13 @@ func ModelCommand() *cobra.Command {
 		Use:   "model",
 		Short: "Generate database model",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if name == "" {
+			if strings.TrimSpace(name) == "" {
+				return fmt.Errorf("invalid model name: %s", name)
+			}
+
+			fileName := strings.ToLower(nonAlphaNum.ReplaceAllString(name, "_"))
+			fileName = strings.Trim(fileName, "_")
+			if fileName == "" {
 				return fmt.Errorf("invalid model name: %s", name)
 			}
 
@@ -37,7 +47,7 @@ func ModelCommand() *cobra.Command {
 	return cmd
 }
 
-func toPascalCase(input string) string {
+func ToPascalCase(input string) string {
 	parts := nonAlphaNum.Split(input, -1)
 	var b strings.Builder
 
@@ -56,8 +66,12 @@ func toPascalCase(input string) string {
 	return b.String()
 }
 
+func toPascalCase(input string) string {
+	return ToPascalCase(input)
+}
+
 func generateModels(name string) error {
-	structName := toPascalCase(name)
+	structName := ToPascalCase(name)
 	fileName := strings.ToLower(nonAlphaNum.ReplaceAllString(name, "_"))
 	fileName = strings.Trim(fileName, "_")
 

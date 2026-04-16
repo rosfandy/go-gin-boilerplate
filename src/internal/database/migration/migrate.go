@@ -12,8 +12,6 @@ import (
 
 var migrationModels = []any{
 	&model.Users{},
-	&model.Owner{},
-	&model.OwnerPremium{},
 }
 
 func Up(configPath *string, sslMode string) error {

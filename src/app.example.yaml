@@ -4,16 +4,16 @@ server:
 postgres:
   host: "localhost"
   user: "postgres"
-  password: "postgres"
+  password: ""
   port: "5432"
-  database: "owner_api_proxy"
-  ssl: "disable"
+  database: "local_db"
+  secure: "disable"
 
 mysql:
-  host: ""
-  user: ""
-  password: ""
-  port: ""
-  database: ""
-  tls: "false"
+  host: "localhost"
+  user: "root"
+  password: "root"
+  port: "3306"
+  database: "local_db"
+  secure: "disable"
 

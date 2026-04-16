@@ -1,6 +1,7 @@
 package test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -8,7 +9,9 @@ import (
 )
 
 func TestServerCommand_HasExpectedDefaultFlags(t *testing.T) {
-	cmd := server.ServerCommand()
+	cmd := server.ServerCommand(func(configPath string) error {
+		return nil
+	})
 
 	configPath, err := cmd.Flags().GetString("config")
 	if err != nil {
@@ -20,7 +23,9 @@ func TestServerCommand_HasExpectedDefaultFlags(t *testing.T) {
 }
 
 func TestServerCommand_ReturnsErrorForMissingConfigFile(t *testing.T) {
-	cmd := server.ServerCommand()
+	cmd := server.ServerCommand(func(configPath string) error {
+		return errors.New("open " + configPath + ": no such file or directory")
+	})
 	cmd.SetArgs([]string{"--config", "missing-config.yaml"})
 
 	err := cmd.Execute()
